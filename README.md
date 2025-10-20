@@ -13,6 +13,9 @@ Di tepi Beleriand yang porak-poranda, Eonwe merentangkan tiga jalur: Barat untuk
 **PENGERJAAN:** 
 
 Buat topologi LAN seperti yang diminta soal
+<img width="766" height="689" alt="Screenshot 2025-10-13 173507" src="https://github.com/user-attachments/assets/10516a75-cd12-4a0e-aa7b-10917f1eacce" />
+
+
 
 
 
@@ -38,6 +41,18 @@ iface eth1 inet static
 	address 10.86.1.1
 	netmask 255.255.255.0
 
+# Static config for eth2 
+auto eth2
+iface eth2 inet static
+	address 10.86.2.1
+	netmask 255.255.255.0
+
+# Static config for eth3
+auto eth3
+iface eth3 inet static
+	address 10.86.3.1
+	netmask 255.255.255.0
+
 
 ```
 
@@ -46,11 +61,21 @@ Jalankan iptables agar router sebagai NAT bagi client-clientnya: `iptables -t na
 ## No.3
 **SOAL:** Kabar dari Barat menyapa Timur. Pastikan kelima klien dapat saling berkomunikasi lintas jalur (routing internal via Eonwe berfungsi), lalu pastikan setiap host non-router menambahkan resolver 192.168.122.1 saat interfacenya aktif agar akses paket dari internet tersedia sejak awal.
 
-**PENGERJAAN:** Tambahkan konfigurasi berikut pada setiap client: 
+**PENGERJAAN:** Tambahkan konfigurasi pada setiap node client berupa: 
 
 ```
-
+auto eth0
+iface eth0 inet static
+	address <prefix>.x.x
+	netmask 255.255.255.0
+	gateway <prefix>.x.x
+	up echo nameserver 192.168.122.1 > /etc/resolv.conf
 ```
+
+jadi disini, prefix mengikuti setup:
+- zona barat menggunakan prefix: 10.86.1.2 (earendil), 10.86.1.3 (elwing) dengan gateway 10.86.1.1 (eonwe)
+- zona timur menggunakan prefix: 10.86.2.2 (cirdan), 10.86.2.3 (elrong), 10.86.2.4 (malgor) dengan gateway 10.86.2.1 (eonwe)
+- area DMZ menggunakan prefix 10.86.3.2 (sirion), 10.86.3.3 (tirion0, 10.86.3.4 (valmar), 10.86.3.5 (lindon), 10.86.3.6 (vingot) dengan gateway 10.86.3.1 (eonwe)
 
 ## No.4
 **SOAL:** Para penjaga nama naik ke menara, di Tirion (ns1/master) bangun zona <xxxx>.com sebagai authoritative dengan SOA yang menunjuk ke ns1.<xxxx>.com dan catatan NS untuk ns1.<xxxx>.com dan ns2.<xxxx>.com. Buat A record untuk ns1.<xxxx>.com dan ns2.<xxxx>.com yang mengarah ke alamat Tirion dan Valmar sesuai glosarium, serta A record apex <xxxx>.com yang mengarah ke alamat Sirion (front door), aktifkan notify dan allow-transfer ke Valmar, set forwarders ke 192.168.122.1. Di Valmar (ns2/slave) tarik zona <xxxx>.com dari Tirion dan pastikan menjawab authoritative pada seluruh host non-router ubah urutan resolver menjadi IP dari ns1.<xxxx>.com → ns2.<xxxx>.com → 192.168.122.1. Verifikasi query ke apex dan hostname layanan dalam zona dijawab melalui ns1/ns2.
