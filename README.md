@@ -177,12 +177,4 @@ serial SOA di keduanya harus sama"
 **PENGERJAAN**:
 Pastikan serialnya sama dengan command `dig @localhost k45.com SOA` pada Tirion & Valmar, perhatikan hasil dari `;; ANSWER SECTION:` nya, apabila nomornya sama, maka sudah benar. apabila belum, maka perlu konfigurasi ulang.
 
-## NO.7 
-**SOAL**: Peta kota dan pelabuhan dilukis. Sirion sebagai gerbang, Lindon sebagai web statis, 
-Vingilot sebagai web dinamis. Tambahkan pada zona <xxxx>.com A record untuk 
-sirion.<xxxx>.com (IP Sirion), lindon.<xxxx>.com vingilot.<xxxx>.com (IP Vingilot). Tetapkan CNAME : 
-- www.<xxxx>.com → sirion.<xxxx>.com,
-- static.<xxxx>.com → lindon.<xxxx>.com, dan
-- app.<xxxx>.com → vingilot.<xxxx>.com.
 
-**PENGERJAAN**: 
