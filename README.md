@@ -177,4 +177,135 @@ serial SOA di keduanya harus sama"
 **PENGERJAAN**:
 Pastikan serialnya sama dengan command `dig @localhost k45.com SOA` pada Tirion & Valmar, perhatikan hasil dari `;; ANSWER SECTION:` nya, apabila nomornya sama, maka sudah benar. apabila belum, maka perlu konfigurasi ulang.
 
+## No. 7
+**SOAL**: "Peta kota dan pelabuhan dilukis. Sirion sebagai gerbang, Lindon sebagai web statis, Vingilot sebagai web dinamis. Tambahkan pada zona <xxxx>.com A record untuk sirion.<xxxx>.com (IP Sirion), lindon.<xxxx>.com (IP Lindon), dan vingilot.<xxxx>.com (IP Vingilot). Tetapkan CNAME :
+- www.<xxxx>.com → sirion.<xxxx>.com, 
+- static.<xxxx>.com → lindon.<xxxx>.com, dan 
+- app.<xxxx>.com → vingilot.<xxxx>.com."
 
+**PENGERJAAN**:
+Di server Tirion (10.86.3.3)
+    1. edit file zone `db.k45.com` dengan `nano /etc/bind/db.k45.com`
+    2. tambahkan A records dan CNAME untuk DMZ:
+	```   
+	; A Records untuk Server DMZ 
+	sirion     IN   A   10.86.3.2       
+	lindon     IN   A   10.86.3.5       
+	vingilot   IN   A   10.86.3.6       
+	; CNAME (Alias) untuk Layanan
+	www        IN   CNAME   sirion.<xxxx>.com.   
+	static     IN   CNAME   lindon.<xxxx>.com.   
+	app        IN   CNAME   vingilot.<xxxx>.com. 
+	```
+	3. keluar dan cek file dengan `named-checkzone k45.com /etc/bind/db.k45.com` sampai muncul 
+    4. Jika output keduanya OK, restart bind9 dengan `sevice named restart`
+	5. masuk ke salah satu node dan ujicoba dengan command:
+		- `dig www.k45.com` ---> pastikan www adalah CNAME ke sirion.k45.com, dan sirion.k45.com adalah A record ke 10.86.3.2.
+		- `dig static.k45.com` ---> pastikan static adalah CNAME ke lindon.k45.com, dan lindon.k45.com adalah A record ke 10.86.3.5.
+		- `dig app.k45.com` ---> pastikan app adalah CNAME ke vingilot.<xxxx>.com, dan vingilot.<xxxx>.com adalah A record ke 10.86.3.6.
+## No.8 
+**SOAL**: "Setiap jejak harus bisa diikuti. Di Tirion (ns1) deklarasikan satu reverse zone untuk segmen DMZ tempat Sirion, Lindon, Vingilot berada. Di Valmar (ns2) tarik reverse zone tersebut sebagai slave, isi PTR untuk ketiga hostname itu agar pencarian balik IP address mengembalikan hostname yang benar, lalu pastikan query reverse untuk alamat Sirion, Lindon, Vingilot dijawab authoritative."
+
+**PENGERJAAN**: 
+1. Di server Tirion:
+	- buat deklarasi reverse zone di named.conf.local 
+    	```
+			zone "3.86.10.in-addr.arpa" {
+    	    type master;
+    		file "/etc/bind/db.10.86.3"; // Nama file untuk reverse zone
+    		allow-transfer { 10.86.3.4; }; // Izinkan Valmar menyalin
+    		also-notify { 10.86.3.4; };    // Beri tahu Valmar jika ada update
+			};
+     	```
+     - buat file reverse zone `nano /etc/bind/db.10.86.3` dan isi dengan konfig berikut:
+        ```
+  			$TTL    604800
+		@       IN      SOA     ns1.k45.com. root.k45.com. (
+                              1         ; Serial (Mulai dari 1)
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+		
+		;  Name Server (NS) 
+		@       IN      NS      ns1.k45.com.
+		@       IN      NS      ns2.k45.com.
+
+		; PTR Records (IP -> Hostname) 
+	
+		2       IN      PTR     sirion.k45.com.
+		5       IN      PTR     lindon.k45.com.
+		6       IN      PTR     vingilot.k45.com.
+        ```
+	- keluar dan cek file dengan `named-checkzone 3.86.10.in-addr.arpa /etc/bind/db.10.86.3` Jika output keduanya OK, restart bind9 dengan `sevice named restart`
+ 
+ 2. Di server Valmar:
+    - tambahkan deklarasi slave baru di `nano /etc/bind/named.conf.local` dengan konfig ini:
+      ```
+		zone "3.86.10.in-addr.arpa" {
+    	type slave;
+    	file "db.10.86.3"; // BIND akan otomatis membuat file ini
+    	masters { 10.86.3.3; }; // Master-nya adalah Tirion
+		};
+      ```
+	- simpan dan restart bind9 dengan `sevice named restart`
+
+3. Verifikasi:
+    - masuk ke salah satu node dan ketik command:
+      - `dig -x 10.86.3.2` ----> Verifikasi IP Sirion
+      - `dig -x 10.86.3.5` ----> Verifikasi IP Lindon
+      - `dig -x 10.86.3.6` ----> Verifikasi IP Vingilot
+    - pastikan:
+       - ada flag `aa` di bagian `;; flags:`
+       - di `;; ANSWER SECTION:` harus mengarah ke IP yang benar
+
+## No.9
+**SOAL**: "Lampion Lindon dinyalakan. Jalankan web statis pada hostname static.<xxxx>.com dan buka folder arsip /annals/ dengan autoindex (directory listing) sehingga isinya dapat ditelusuri. Akses harus dilakukan melalui hostname, bukan IP."
+
+**PENGERJAAN**:
+1. Install Nginx di Lindon `apt update && apt install nginx -y`
+2. Buat direktori: 
+		 `mkdir -p /var/www/static/annals` 
+   ``` 
+   #Buat file dummy di dalam /annals/ agar tidak kosong
+   echo "The Annals of Aman" > /var/www/static/annals/chapter1.txt
+   echo "The Annals of Beleriand" > /var/www/static/annals/chapter2.txt
+   echo "<h1>Welcome to Lindon</h1>" > /var/www/static/index.html
+   ```
+    
+3. Konfig nginx:
+- Hapus konfigurasi default `rm /etc/nginx/sites-enabled/default`
+- Buat file konfigurasi baru `nano /etc/nginx/sites-available/static`
+- Isi file konfig:
+  ```
+	server {
+    # Listen di port 80
+    listen 80;
+
+    # Tentukan root directory
+    root /var/www/static;
+    index index.html index.htm;
+
+    # Tentukan hostname yang dilayani 
+    server_name static.k45.com;
+
+    # Konfigurasi untuk halaman utama
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Konfigurasi untuk folder /annals/ 
+    location /annals/ {
+        # Aktifkan directory listing (autoindex)
+        autoindex on;
+    }
+  }
+  ```
+4. Aktifkan konfigurasi baru dengan membuat symbolic link: `ln -s /etc/nginx/sites-available/static /etc/nginx/sites-enabled/`
+5. Restart Nginx
+6. Verifikasi dengan:
+   - Tes halaman utama: `curl http://static.k45.com` ----> Output yang diharapkan: `<h1>Welcome to Lindon</h1>`
+   - Tes directory listing /annals/: `curl http://static.k45.com/annals/` ----> 0utput yang diharapkan: daftar file HTML yang rapi, berisi chapter1.txt dan 	chapter2.txt, yang membuktikan autoindex berfungsi.
+   - 
+	
+    
