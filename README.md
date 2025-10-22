@@ -82,41 +82,91 @@ jadi disini, prefix mengikuti setup:
 
 **PENGERJAAN:** 
 
+dimulai dengan melakukan instalasi bind9 dengan command `apt install bind9 -y`
+
+1. Konfigurasi master dns server node Tirion (ns1/master):
+
+- menambahkan setup sebagai master di zone dalam `/etc/bind/named.conf.local`
+```
+  zone "k45.com" {
+    type master;
+    file "/etc/bind/db.k45.com"; 
+    // Izinkan transfer dan notifikasi ke Valmar (ns2) 
+    allow-transfer { 10.86.3.4; }; // IP Valmar
+    also-notify { 10.86.3.4; };    // IP Valmar
+};
+```
+- menambahkan setup forwarders di `/etc/bind/named.conf.options`:
+```
+options {
+    directory "/var/cache/bind";
+    forwarders {
+        192.168.122.1;
+    };
+    recursion yes;
+    allow-query { any; };
+};
+```
+- menambahkan setup A record di `nano /etc/bind/db.k45.com`
+```
+$TTL    604800
+@       IN      SOA     ns1.k45.com. root.k45.com. (
+                              2         ; Serial (Mulai dari 1 atau 2)
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+
+@       IN      NS      ns1.k45.com.
+@       IN      NS      ns2.k45.com.
+
+
+@       IN      A       10.86.3.2		; IP Sirion sbg apex
+
+; Record untuk Name Server
+ns1     IN      A       10.86.3.3       ; IP Tirion
+ns2     IN      A       10.86.3.4       ; IP Valmar
 ```
 
-```
+- restart bind9 dengan `service named restart`
 
-Konfigurasi master dns server pada node Tirion (ns1/master) dg menambahkan `/etc/bind/named.conf.local`:
 
-```
-
-```
-
-Menetapkan forwarders ke `192.168.122.1` dg menulis `/etc/bind/named.conf.options` pada Tirion (ns1/master)..
+2. Konfigurasi slave dns pada Valmar
+   
+- deklarasi valmar sebagai budak (ns2/slave) dg menulis zonefile `nano /etc/bind/named.conf.local`
 
 ```
-
+zone "k45.com" {
+    type slave;
+    file "db.k45.com"; 
+    masters { 10.86.3.3; }; // IP Tirion (ns1)
+};
 ```
+- restart bind9 valmar dengan `service named restart`
 
-Konfigurasi slave dns pada Valmar (ns2/slave) dg menulis zonefile..
-
-```
-
-```
-
-Menetapkan `/etc/resolv.conf` seperti berikut pada setiap node..
-
-```
-
-```
+3. tambahkan nameserver baru dengan ip ns1 & ns2 pada konfigurasi setiap node dengan `nano /etc/resolv.conf`
+   ```
+	nameserver 10.86.3.3 // IP Tirion (ns1)
+	nameserver 10.86.3.4 // IP Valmar (ns2)
+   ```
 
 ## No.5
 **SOAL:** “Nama memberi arah,” kata Eonwe. Namai semua tokoh (hostname) sesuai glosarium, eonwe, earendil, elwing, cirdan, elrond, maglor, sirion, tirion, valmar, lindon, vingilot, dan verifikasi bahwa setiap host mengenali dan menggunakan hostname tersebut secara system-wide. Buat setiap domain untuk masing masing node sesuai dengan namanya (contoh: eru.<xxxx>.com) dan assign IP masing-masing juga. Lakukan pengecualian untuk node yang bertanggung jawab atas ns1 dan ns2.
 
-**PENGERJAAN:** Tetapkan A record pada setiap client dengan subdomain yang sesuai dengan nama tiap client (eg. lindon dengan lindon.k58.com). Tambahkan ini pada zonefile milik Tirion (ns1/master):
+**PENGERJAAN:** 
+
+- Tambahkan A record pada setiap client dengan subdomain yang sesuai dengan nama tiap client, ini dilakukan di Tirion dengan `nano /etc/bind/db.k45.com`
 
 ```
-...
-
+earendil   IN   A   10.86.1.2
+elwing     IN   A   10.86.1.3
+cirdan     IN   A   10.86.2.2
+elrond     IN   A   10.86.2.3
+maglor     IN   A   10.86.1.4
+eonwe      IN   A   10.86.3.1 
 ```
+- restart bind9
+- test ping ke host lain dengan nama (misal: ping elrond.k45.com)
 
+## No.6
